@@ -50,6 +50,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use crossbeam_channel as channel;
@@ -206,6 +207,7 @@ fn handle_stream(log: &slog::Logger, config: &Config, mut stream: UnixStream) {
     };
     let type_str = format!("{:?}", request.ty);
     let log = log.new(o!("request_type" => type_str));
+    let now = Instant::now();
     let response = match handlers::handle_request(&log, config, &request) {
         Ok(x) => x,
         Err(e) => {
@@ -213,6 +215,8 @@ fn handle_stream(log: &slog::Logger, config: &Config, mut stream: UnixStream) {
             return;
         }
     };
+    let elapsed = now.elapsed();
+    debug!(log, "request handled"; "elapsed" => ?elapsed);
     if let Err(e) = stream.write_all(response.as_slice()) {
         match e.kind() {
             // If we send a response that's too big for the client's buffer,
